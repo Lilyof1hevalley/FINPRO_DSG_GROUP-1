@@ -6,21 +6,15 @@ entity Key is
     Port ( 
            clk        : in  STD_LOGIC;
            reset      : in  STD_LOGIC;
-           Button     : in  STD_LOGIC; -- Tombol Remote
-           
-           -- Output SPI (Ke Udara/Mobil)
+           Button     : in  STD_LOGIC;
            SPI_SCK    : out STD_LOGIC;
            SPI_MOSI   : out STD_LOGIC;
            SPI_SS     : out STD_LOGIC;
-           
-           -- Debug LED (Opsional, nyala saat mengirim)
            Tx_Active  : out STD_LOGIC
            );
 end Key;
 
 architecture Behavioral of Key is
-
-    -- 1. KOMPONEN OTP GENERATOR (Reuse)
     component OTP_Generator
     Port ( 
            Counter    : in  STD_LOGIC_VECTOR (31 downto 0);
@@ -28,8 +22,7 @@ architecture Behavioral of Key is
            OTP_Result : out STD_LOGIC_VECTOR (31 downto 0)
     );
     end component;
-
-    -- 2. KOMPONEN SPI MASTER (Reuse)
+    
     component SPI_Master
     Generic ( CLK_DIV : integer := 4 );
     Port (
@@ -43,8 +36,7 @@ architecture Behavioral of Key is
         busy    : out STD_LOGIC
     );
     end component;
-
-    -- 3. KOMPONEN KEY FSM
+    
     component Key_FSM
     Port ( 
            clk           : in  STD_LOGIC;
@@ -56,93 +48,94 @@ architecture Behavioral of Key is
            Inc_Counter   : out STD_LOGIC
     );
     end component;
-
-    -- KONFIGURASI REMOTE (HARDCODED)
-    -- Ini mensimulasikan Chip Remote yang sudah diprogram pabrik
-    constant MY_USER_ID    : std_logic_vector(1 downto 0)  := "00";        -- Remote milik User 0
-    constant MY_SECRET_KEY : std_logic_vector(31 downto 0) := x"11111111"; -- Key User 0 (Sesuai DB Mobil)
-
-    -- INTERNAL SIGNALS
-    signal r_counter      : std_logic_vector(31 downto 0); -- Register Counter Internal
-    signal w_otp_result   : std_logic_vector(31 downto 0); -- Kabel hasil hitungan OTP
     
-    -- Kabel Kontrol FSM
+    -- Konfigurasi Remote (Sesuaikan dengan user yang diinginkan)
+    constant MY_USER_ID    : std_logic_vector(1 downto 0)  := "00";
+    constant MY_SECRET_KEY : std_logic_vector(31 downto 0) := x"11111111";
+    
+    signal r_counter      : std_logic_vector(31 downto 0);
+    signal w_otp_result   : std_logic_vector(31 downto 0);
     signal fsm_start_spi  : std_logic;
     signal fsm_pkt_sel    : std_logic_vector(1 downto 0);
     signal fsm_inc_cnt    : std_logic;
     signal spi_is_busy    : std_logic;
+    signal spi_data_mux   : std_logic_vector(31 downto 0);
     
-    -- Kabel Data SPI
-    signal spi_data_mux   : std_logic_vector(31 downto 0); -- Data yang dipilih untuk dikirim
-
+    -- Button debouncing
+    signal btn_sync       : std_logic_vector(2 downto 0) := "000";
+    signal btn_stable     : std_logic := '0';
 begin
-
-    Tx_Active <= spi_is_busy; -- LED nyala kalau SPI sibuk
-
-    -- A. PROSES COUNTER (Memori Internal Remote)
-    -- Counter bertambah setiap kali FSM selesai mengirim satu siklus penuh
+    Tx_Active <= spi_is_busy;
+    
+    -- Button Debouncing Process
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            btn_sync <= btn_sync(1 downto 0) & Button;
+            if btn_sync = "111" then
+                btn_stable <= '1';
+            elsif btn_sync = "000" then
+                btn_stable <= '0';
+            end if;
+        end if;
+    end process;
+    
+    -- Counter Process
     process(clk, reset)
     begin
         if reset = '1' then
-            -- Mulai dari 2 (Genap) sesuai workaround simulasi kita sebelumnya
-            -- Atau bisa mulai dari 1, tergantung kebutuhan
-            r_counter <= x"00000002"; 
+            r_counter <= x"00000001";  -- Mulai dari 1
         elsif rising_edge(clk) then
             if fsm_inc_cnt = '1' then
                 r_counter <= std_logic_vector(unsigned(r_counter) + 1);
             end if;
         end if;
     end process;
-
-    -- B. INSTANSIASI OTP GENERATOR
-    -- Menghitung OTP berdasarkan Counter saat ini & Kunci Saya
+    
+    -- OTP Generator Instance
     Gen_Unit: OTP_Generator PORT MAP (
         Counter    => r_counter,
         Secret_Key => MY_SECRET_KEY,
         OTP_Result => w_otp_result
     );
-
-    -- C. MULTIPLEXER DATA (Memilih apa yang mau dikirim via SPI)
-    -- Dikontrol oleh FSM (Packet_Select)
+    
+    -- Data Multiplexer
     process(fsm_pkt_sel, r_counter, w_otp_result)
     begin
         case fsm_pkt_sel is
-            when "00" => -- Kirim User ID (Padding 0 di depan)
+            when "00" =>
                 spi_data_mux <= x"0000000" & "00" & MY_USER_ID;
-            when "01" => -- Kirim Counter
+            when "01" =>
                 spi_data_mux <= r_counter;
-            when "10" => -- Kirim OTP
+            when "10" =>
                 spi_data_mux <= w_otp_result;
             when others =>
                 spi_data_mux <= (others => '0');
         end case;
     end process;
-
-    -- D. INSTANSIASI KEY FSM
-    -- Mengatur urutan pengiriman
+    
+    -- Key FSM Instance
     Control_Unit: Key_FSM PORT MAP (
         clk           => clk,
         reset         => reset,
-        Button_Press  => Button,
+        Button_Press  => btn_stable,  -- Gunakan button yang sudah di-debounce
         SPI_Busy      => spi_is_busy,
         SPI_Start     => fsm_start_spi,
         Packet_Select => fsm_pkt_sel,
         Inc_Counter   => fsm_inc_cnt
     );
-
-    -- E. INSTANSIASI SPI MASTER
-    -- Pengirim sinyal fisik
+    
+    -- SPI Master Instance
     SPI_Tx: SPI_Master 
-    GENERIC MAP ( CLK_DIV => 4 ) -- Sesuaikan clock speed
+    GENERIC MAP ( CLK_DIV => 4 )
     PORT MAP (
         clk_sys => clk,
         rst     => reset,
         start   => fsm_start_spi,
-        data_in => spi_data_mux, -- Data masuk dari Mux
+        data_in => spi_data_mux,
         SCK     => SPI_SCK,
         SS      => SPI_SS,
         MOSI    => SPI_MOSI,
         busy    => spi_is_busy
     );
-
 end Behavioral;
