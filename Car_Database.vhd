@@ -1,4 +1,4 @@
--- Stores registered key credentials for authentication
+Car Database
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
@@ -8,44 +8,44 @@ entity Car_Database is
         clk : in std_logic;
         rst : in std_logic;
         
-        -- lookup interface
+        -- Lookup interface that reads credentials
         lookup_id : in std_logic_vector(7 downto 0);
         lookup_en : in std_logic;
         
-        -- output data
+        -- Lookup results
         key_found : out std_logic;
         stored_key : out std_logic_vector(31 downto 0);
         stored_counter : out std_logic_vector(7 downto 0);
         
-        -- counter update interface
+        -- Counter update interface that used after success authentication
         update_en : in std_logic;
-        update_id : in std_logic_vector(7 downto 0)
+        update_id : in std_logic_vector(7 downto 0);
+        update_counter : in std_logic_vector(7 downto 0)
     );
 end Car_Database;
 
 architecture Behavioral of Car_Database is
+
+    -- DATABASE STRUCTURE
     
-    -- database record structure
     type key_record is record
-        id : std_logic_vector(7 downto 0);
-        key : std_logic_vector(31 downto 0);
+        id      : std_logic_vector(7 downto 0);
+        key     : std_logic_vector(31 downto 0);
         counter : std_logic_vector(7 downto 0);
-        valid : std_logic;
+        valid   : std_logic;
     end record;
     
     type db_array is array(0 to 3) of key_record;
-    
-    -- init with some test keys
+      
     signal database : db_array := (
-        0 => (id => x"02", key => x"0000000B", counter => x"05", valid => '1'),
-        1 => (id => x"03", key => x"0000000F", counter => x"0A", valid => '1'),
-        2 => (id => x"04", key => x"00000014", counter => x"00", valid => '1'),
-        3 => (id => x"00", key => x"00000000", counter => x"00", valid => '0')
+        0 => (id => x"02", key => x"0000000B", counter => x"00", valid => '1'), -- ✅ Key #2
+        1 => (id => x"03", key => x"0000000F", counter => x"00", valid => '1'), -- Key #3
+        2 => (id => x"04", key => x"00000014", counter => x"00", valid => '1'), -- Key #4
+        3 => (id => x"FF", key => x"00000000", counter => x"00", valid => '0')  -- Empty slot
     );
     
 begin
-
-    -- lookup process
+    -- MAIN PROCESS: Lookup & Update
     process(clk, rst)
         variable match_found : std_logic;
         variable match_index : integer range 0 to 3;
@@ -56,41 +56,56 @@ begin
             stored_counter <= (others => '0');
             
         elsif rising_edge(clk) then
-            
+            -- Lookup Operation
             if lookup_en = '1' then
                 match_found := '0';
                 match_index := 0;
                 
-                -- search through database
+                report "[DB] Lookup requested for ID: " & integer'image(to_integer(unsigned(lookup_id)));
+                
+                -- Search through all database entries
                 for i in 0 to 3 loop
+                    report "[DB] Checking entry " & integer'image(i) & 
+                           ": ID=" & integer'image(to_integer(unsigned(database(i).id))) &
+                           ", valid=" & std_logic'image(database(i).valid);
+                    
                     if database(i).valid = '1' and database(i).id = lookup_id then
                         match_found := '1';
                         match_index := i;
+                        report "[DB] MATCH FOUND at index " & integer'image(i);
                         exit;
                     end if;
                 end loop;
                 
+                -- Output results
                 if match_found = '1' then
                     key_found <= '1';
                     stored_key <= database(match_index).key;
                     stored_counter <= database(match_index).counter;
+                    report "[DB] Returning key: 0x" & 
+                           integer'image(to_integer(unsigned(database(match_index).key)));
                 else
                     key_found <= '0';
                     stored_key <= (others => '0');
                     stored_counter <= (others => '0');
+                    report "[DB] ID NOT FOUND!";
                 end if;
             end if;
             
-            -- increment counter after successful auth
+            -- Counter Update Operation
             if update_en = '1' then
                 for i in 0 to 3 loop
                     if database(i).valid = '1' and database(i).id = update_id then
-                        database(i).counter <= std_logic_vector(unsigned(database(i).counter) + 1);
+                        database(i).counter <= update_counter;
+                        report "[DB] Updated counter for ID " & 
+                               integer'image(to_integer(unsigned(update_id))) &
+                               " to " & integer'image(to_integer(unsigned(update_counter)));
+                        exit;
                     end if;
                 end loop;
             end if;
             
         end if;
     end process;
-
+    
 end Behavioral;

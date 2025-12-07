@@ -1,57 +1,31 @@
--- Stores this key's credentials (single key only)
-library IEEE;
+ibrary IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity Key_Database is
-    Port (
-        clk : in std_logic;
-        rst : in std_logic;
-        
-        -- read interface
-        read_en : in std_logic;
-        my_id : out std_logic_vector(7 downto 0);
-        my_key : out std_logic_vector(31 downto 0);
-        my_counter : out std_logic_vector(7 downto 0);
-        
-        -- counter increment
-        inc_counter : in std_logic
-    );
+    Port ( 
+           clk        : in  STD_LOGIC;                      -- Synchronous's read clock
+           User_ID    : in  STD_LOGIC_VECTOR (1 downto 0);  -- User ID (00-11)
+           Secret_Key_Out : out STD_LOGIC_VECTOR (31 downto 0) -- Secret key output
+           );
 end Key_Database;
 
 architecture Behavioral of Key_Database is
+    -- Array of 4 secret keys (ROM)
+    type key_rom_type is array (0 to 3) of std_logic_vector(31 downto 0);
     
-    -- this key's stored credentials
-    constant ID_VALUE : std_logic_vector(7 downto 0) := x"02";
-    constant KEY_VALUE : std_logic_vector(31 downto 0) := x"0000000B";
-    
-    signal counter_value : std_logic_vector(7 downto 0) := x"05";
-    
+    constant KEY_ROM : key_rom_type := (
+        0 => x"11111111",  
+        1 => x"AABBCCDD",  
+        2 => x"12345678",  
+        3 => x"FEDCBA98"   
+    );
 begin
-
-    process(clk, rst)
+    process(clk)
     begin
-        if rst = '1' then
-            counter_value <= x"05";  -- reset to initial value
-            my_id <= (others => '0');
-            my_key <= (others => '0');
-            my_counter <= (others => '0');
-            
-        elsif rising_edge(clk) then
-            
-            -- return stored credentials when requested
-            if read_en = '1' then
-                my_id <= ID_VALUE;
-                my_key <= KEY_VALUE;
-                my_counter <= counter_value;
-            end if;
-            
-            -- increment counter after successful transaction
-            if inc_counter = '1' then
-                counter_value <= std_logic_vector(unsigned(counter_value) + 1);
-            end if;
-            
+        if rising_edge(clk) then
+            -- Lookup key according to the User ID
+            Secret_Key_Out <= KEY_ROM(to_integer(unsigned(User_ID)));
         end if;
     end process;
-
 end Behavioral;
