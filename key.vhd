@@ -107,7 +107,7 @@ begin
 --component instantiations (structural)
     
     --button debouncer
-    U_BUTTON_DEBOUNCER: Button_Debouncer
+    BUTTON_DEBOUNCER: Button_Debouncer
     port map (
         clk     => clk,
         btn_in  => Button,
@@ -115,7 +115,7 @@ begin
     );
     
     --counter increment
-    U_COUNTER: Counter_Inc
+    COUNTER: Counter_Inc
     port map (
         clk      => clk,
         reset    => reset,
@@ -128,7 +128,7 @@ begin
     );
     
     --otp gen instanttiations
-    U_OTP_GENERATOR: OTP_Generator
+    OTP_GENERATOR: OTP_Generator
     port map (
         Counter    => counter_value,
         Secret_Key => MY_SECRET_KEY,
@@ -136,7 +136,7 @@ begin
     );
     
     --key fsm instantiations
-    U_KEY_FSM: Key_FSM
+    KEY_FSM: Key_FSM
     port map (
         clk           => clk,
         reset         => reset,
@@ -148,7 +148,7 @@ begin
     );
     
     --spi master instantiations
-    U_SPI_MASTER: SPI_Master
+    SPI_MASTER: SPI_Master
     generic map ( 
         CLK_DIV => 4 
     )
@@ -180,3 +180,7 @@ begin
     end process;
     
 end Hybrid;
+
+--basically accepting "signal" outside from button debouncer to get the btn_debounced
+--btn_debounced was sent to key fsm that controls the sequence (choosing data packet via fsm pkt selector)
+--obtaining data from the counter/otp to be sent to the spi master, that later will sent to transmission active indicator
