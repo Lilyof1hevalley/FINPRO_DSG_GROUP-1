@@ -43,6 +43,7 @@ The system design will be modular with the separation of communication, logic, s
 The key security engine that calculates a 32-bit One-Time Password using a Counter and a Secret Key. It makes use of bitwise operation and a golden ratio constant which facilitates diffusion of data.
 
 VHDL Code - OTP_Generator 
+```vhdl
 process(Counter, Secret_Key)
     variable temp : unsigned(31 downto 0);
 begin
@@ -60,6 +61,7 @@ begin
     
     OTP_Result <= std_logic_vector(temp);
 end process;
+```
 
 Type of Design Behavioral Style.
 It's a pseudo-random generation process. Just a slight modification in the Counter will cause a significant alteration in the OTP, which will not allow attackers to predict the next code .
@@ -68,6 +70,7 @@ It's a pseudo-random generation process. Just a slight modification in the Count
 A component of the Car that contains credentials is a database. It enables the system to search a Secret Key using User ID and modify the stored Counter upon successful unlocking.
 
 VHDL Code - Car_Database :
+```vhdl
 type key_record is record
     id      : std_logic_vector(7 downto 0);
     key     : std_logic_vector(31 downto 0);
@@ -83,7 +86,7 @@ signal database : db_array := (
     1 => (id => x"03", key => x"0000000F", counter => x"00", valid => '1'), 
     -- ...
 );
-
+```
 Type of Design: Behavioral Style.
 This is the component that serves as the system memory. It helps in lookup operations to get the keys to verify and update operations to save the new counter value to avoid the use of old codes again.
 
@@ -91,6 +94,7 @@ This is the component that serves as the system memory. It helps in lookup opera
 This FSM regulates the sequence of transmission of the Key. It makes sure that data is transmitted in the particular sequence that is needed by the protocol.
 
 VHDL Code - Key_FSM 
+```vhdl
 type state_type is (
     ST_IDLE,
     ST_START_ID, ST_WAIT_BUSY_ID, ST_WAIT_DONE_ID, ST_GAP_1,
@@ -98,7 +102,7 @@ type state_type is (
     ST_START_OTP, ST_WAIT_BUSY_OTP, ST_WAIT_DONE_OTP,
     ST_UPDATE
 );
-
+```
 Type of Design Finite State Machine (FSM).
 FSM passes through three stages of transmission. It transmits User ID (Packet 1), Counter (Packet 2) and lastly OTP (Packet 3). Then it causes a counter to be increased inwardly.
 
@@ -106,6 +110,7 @@ FSM passes through three stages of transmission. It transmits User ID (Packet 1)
 Deals with the logic of the physical response of the Car. Depending on the results of the validation it will open the door or activate the alarm.
 
 VHDL Code - Car_FSM
+```vhdl
 case current_state is
     when ST_IDLE =>
         if Remote_Trigger = '1' then
@@ -122,7 +127,7 @@ case current_state is
         Door_Open <= '1';
         next_state <= ST_OPEN;
 end case;
-
+```
 Type of Design Finite State Machine (FSM).
 The state machine is waiting to be triggered by the SPI receiver. On receipt of data it is transferred to STCHECK. On high CodeIsCorrect signal (OTP matches) the door is unlocked, and the AlarmSiren is switched on.
 
@@ -130,6 +135,7 @@ The state machine is waiting to be triggered by the SPI receiver. On receipt of 
 This is the highest level element, which mounts SPI Slave, Database, OTP Generator and Control FSM into the overall receiver system.
 
 VHDL Code - Car
+```vhdl
 -- Validates if the received counter is within the allowed window
 process(Reg_Counter, db_stored_counter)
 begin
@@ -149,6 +155,6 @@ begin
         Match_Flag <= '0';
     end if;
 end process;
-
+```
 Design Type Structural and Behavioral Mixed.
 This entity links the SPISlave (which receives the 3 packets) and the OTPGenerator (which computes the code that is expected). It has the critical logic which compares the received OTP with the calculated OTP and checks that the counter is fresh.
