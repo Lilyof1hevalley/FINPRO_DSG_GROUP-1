@@ -3,17 +3,18 @@ use IEEE.STD_LOGIC_1164.ALL;
 
 entity Key_FSM is
     Port ( 
-           clk           : in  STD_LOGIC;
-           reset         : in  STD_LOGIC;
-           Button_Press  : in  STD_LOGIC;
-           SPI_Busy      : in  STD_LOGIC;
-           SPI_Start     : out STD_LOGIC;
-           Packet_Select : out STD_LOGIC_VECTOR(1 downto 0);
-           Inc_Counter   : out STD_LOGIC
+           clk           : in  STD_LOGIC;                      --system clock
+           reset         : in  STD_LOGIC;                      --reset to IDLE
+           Button_Press  : in  STD_LOGIC;                      --button pressed (debounced)
+           SPI_Busy      : in  STD_LOGIC;                      --spi busy flag
+           SPI_Start     : out STD_LOGIC;                      --start spi transmission
+           Packet_Select : out STD_LOGIC_VECTOR(1 downto 0);   --packet selector
+           Inc_Counter   : out STD_LOGIC                       --increment counter pulse
            );
 end Key_FSM;
 
 architecture Behavioral of Key_FSM is
+    --state definitions
     type state_type is (
         ST_IDLE,
         ST_START_ID, ST_WAIT_BUSY_ID, ST_WAIT_DONE_ID, ST_GAP_1,
@@ -23,6 +24,7 @@ architecture Behavioral of Key_FSM is
     );
     signal current_state, next_state : state_type;
 begin
+    --state register
     process(clk, reset)
     begin
         if reset = '1' then
@@ -32,8 +34,10 @@ begin
         end if;
     end process;
     
+    --next state logic & outputs
     process(current_state, Button_Press, SPI_Busy)
     begin
+        --default assignments
         next_state <= current_state;
         SPI_Start <= '0';
         Packet_Select <= "00";
@@ -44,8 +48,8 @@ begin
                 if Button_Press = '1' then
                     next_state <= ST_START_ID;
                 end if;
-                
-            --user id
+            
+            --this is packet 1: user id
             when ST_START_ID =>
                 SPI_Start <= '1';
                 Packet_Select <= "00";
@@ -63,8 +67,8 @@ begin
             when ST_GAP_1 =>
                 Packet_Select <= "01";
                 next_state <= ST_START_CNT;
-                
-            --counter
+            
+            --this is packet 2: counter
             when ST_START_CNT =>
                 SPI_Start <= '1';
                 Packet_Select <= "01";
@@ -82,8 +86,8 @@ begin
             when ST_GAP_2 =>
                 Packet_Select <= "10";
                 next_state <= ST_START_OTP;
-                
-            --otp
+            
+            --this is packet 3: otp
             when ST_START_OTP =>
                 SPI_Start <= '1';
                 Packet_Select <= "10";
@@ -98,9 +102,9 @@ begin
                 if SPI_Busy = '0' then
                     next_state <= ST_UPDATE;
                 end if;
-                
+            
             when ST_UPDATE =>
-                Inc_Counter <= '1';
+                Inc_Counter <= '1';  --increment counter after trans success
                 next_state <= ST_IDLE;
         end case;
     end process;

@@ -16,8 +16,9 @@ end Key;
 
 architecture Hybrid of Key is
 
---component declarations (structural part):  
+--component declarations (structural part):
     --button debouncer comp
+    
     component Button_Debouncer is
         Port(
             clk     : in std_logic;
@@ -25,18 +26,18 @@ architecture Hybrid of Key is
             btn_out : out std_logic
         );
     end component;
-
+    
     --counter increment comp
     component Counter_Inc is
         Port (
             clk      : in  STD_LOGIC;
-            reset    : in  STD_LOGIC;      
-            enable   : in  STD_LOGIC;      
-            inc      : in  STD_LOGIC;      --increment pulse
-            load     : in  STD_LOGIC;      --load new value
+            reset    : in  STD_LOGIC;
+            enable   : in  STD_LOGIC;
+            inc      : in  STD_LOGIC; --increment pulse
+            load     : in  STD_LOGIC; --load new value
             data_in  : in  STD_LOGIC_VECTOR(31 downto 0);
             count    : out STD_LOGIC_VECTOR(31 downto 0);
-            overflow : out STD_LOGIC       --overflow indicator
+            overflow : out STD_LOGIC  --overflow indicator
         );
     end component;
     
@@ -78,77 +79,76 @@ architecture Hybrid of Key is
     end component;
     
 --signal & constants (behavioral):
+    --remote configuration
+    constant MY_USER_ID    : std_logic_vector(1 downto 0)  := "10";      -- fixing this to match the ID on the database this case was  2 (matches Car DB)
+    constant MY_SECRET_KEY : std_logic_vector(31 downto 0) := x"0000000B"; -- Key = 11(matches Car DB)
     
-    --remote configuration 
-    constant MY_USER_ID    : std_logic_vector(1 downto 0)  := "00";
-    constant MY_SECRET_KEY : std_logic_vector(31 downto 0) := x"11111111";
+    --the internal signals
+    signal btn_debounced   : std_logic;
+    signal counter_value   : std_logic_vector(31 downto 0);
+    signal otp_value       : std_logic_vector(31 downto 0);
+    signal fsm_start_spi   : std_logic;
+    signal fsm_pkt_sel     : std_logic_vector(1 downto 0);
+    signal fsm_inc_cnt     : std_logic;
+    signal spi_is_busy     : std_logic;
+    signal spi_data_mux    : std_logic_vector(31 downto 0);
     
-    --the internal signal
-    signal btn_debounced   : std_logic;                    --from Button_Debouncer
-    signal counter_value   : std_logic_vector(31 downto 0);--from Counter_Inc
-    signal otp_value       : std_logic_vector(31 downto 0);--from OTP_Generator
-    signal fsm_start_spi   : std_logic;                    --from Key_FSM
-    signal fsm_pkt_sel     : std_logic_vector(1 downto 0); --from Key_FSM
-    signal fsm_inc_cnt     : std_logic;                    --from Key_FSM
-    signal spi_is_busy     : std_logic;                    --from SPI_Master
-    signal spi_data_mux    : std_logic_vector(31 downto 0);--to SPI_Master
-    
-    --counter control signals (for the counter increment)
-    signal counter_enable  : std_logic := '1';             --always enabled
-    signal counter_load    : std_logic := '0';             --not loading
+    --the counter control signals
+    signal counter_enable  : std_logic := '1'; --always enabed
+    signal counter_load    : std_logic := '0'; --not loading
     signal counter_data_in : std_logic_vector(31 downto 0) := (others => '0');
-    signal counter_overflow: std_logic;                    --not used
+    signal counter_overflow: std_logic; --not used
     
 begin
 
 --output assignment (which also behavioral)
     Tx_Active <= spi_is_busy;
-    
---component instantiations (structural)
-    
-    --button debouncer
-    BUTTON_DEBOUNCER: Button_Debouncer
+
+--component instantiations (structural):
+
+    --button debouncer instants
+    DEBOUNCER: Button_Debouncer
     port map (
         clk     => clk,
         btn_in  => Button,
         btn_out => btn_debounced
     );
     
-    --counter increment
+    --counter increment instants
     COUNTER: Counter_Inc
     port map (
         clk      => clk,
         reset    => reset,
         enable   => counter_enable,
-        inc      => fsm_inc_cnt,      --increment from FSM
-        load     => counter_load,     --not used 
-        data_in  => counter_data_in,  --not used 
-        count    => counter_value,    --counter value to otp & mux
-        overflow => counter_overflow  --not used
+        inc      => fsm_inc_cnt,
+        load     => counter_load,
+        data_in  => counter_data_in,
+        count    => counter_value,
+        overflow => counter_overflow
     );
     
-    --otp gen instanttiations
-    OTP_GENERATOR: OTP_Generator
+    --otp gen instants
+    OTP_GEN: OTP_Generator
     port map (
         Counter    => counter_value,
         Secret_Key => MY_SECRET_KEY,
         OTP_Result => otp_value
     );
     
-    --key fsm instantiations
-    KEY_FSM: Key_FSM
+    --key fsm instants
+    FSM: Key_FSM
     port map (
         clk           => clk,
         reset         => reset,
-        Button_Press  => btn_debounced,   --using debounced button
+        Button_Press  => btn_debounced,
         SPI_Busy      => spi_is_busy,
         SPI_Start     => fsm_start_spi,
         Packet_Select => fsm_pkt_sel,
         Inc_Counter   => fsm_inc_cnt
     );
     
-    --spi master instantiations
-    SPI_MASTER: SPI_Master
+    --spi master instants
+    SPI: SPI_Master
     generic map ( 
         CLK_DIV => 4 
     )
@@ -163,24 +163,35 @@ begin
         busy    => spi_is_busy
     );
     
-
-    --behavioral processes
-    --this is to selects which packet to send based on FSM state
-    --if its 00, then it sends user id, if its 01, sends counter, if its 10 sends
-    --otp, while 11 is unused
-    
+--behavioral processes
+--this is to select which packet to send based on fsm state
+--00, send user id, 01 send counter, 10 send otp, 11 unsed
     process(fsm_pkt_sel, counter_value, otp_value)
     begin
         case fsm_pkt_sel is
-            when "00" => spi_data_mux <= x"0000000" & "00" & MY_USER_ID;
-            when "01" => spi_data_mux <= counter_value;
-            when "10" => spi_data_mux <= otp_value;
-            when others => spi_data_mux <= (others => '0');
+            when "00" =>  -- Packet 1: User ID
+                spi_data_mux <= x"000000" & "000000" & MY_USER_ID;
+            when "01" =>  -- Packet 2: Counter
+                spi_data_mux <= counter_value;
+            when "10" =>  -- Packet 3: OTP
+                spi_data_mux <= otp_value;
+            when others =>
+                spi_data_mux <= (others => '0');
         end case;
+    end process;
+    
+--overflow monitoring
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if counter_overflow = '1' then
+                null;
+            end if;
+        end if;
     end process;
     
 end Hybrid;
 
---basically accepting "signal" outside from button debouncer to get the btn_debounced
---btn_debounced was sent to key fsm that controls the sequence (choosing data packet via fsm pkt selector)
+--basically accepting "signal" outside from button debouncer to get the btn_debounced		
+--btn_debounced was sent to key fsm that controls the sequence (choosing data packet via fsm pkt selector)		
 --obtaining data from the counter/otp to be sent to the spi master, that later will sent to transmission active indicator
