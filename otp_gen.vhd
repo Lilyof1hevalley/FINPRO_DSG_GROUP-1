@@ -11,18 +11,17 @@ entity OTP_Generator is
 end OTP_Generator;
 
 architecture Behavioral of OTP_Generator is
-    signal T1 : std_logic_vector(31 downto 0);
-    
-    function Func_ShiftLeft (
-        val_in : std_logic_vector(31 downto 0);
-        n      : integer
-    ) return std_logic_vector is
-        variable v_result : std_logic_vector(31 downto 0);
-    begin
-        v_result := std_logic_vector(shift_left(unsigned(val_in), n));
-        return v_result;
-    end function;
+    --im changing it into more secure
 begin
-    T1 <= Counter xor Secret_Key;
-    OTP_Result <= Func_ShiftLeft(T1, 5);
+    process(Counter, Secret_Key)
+    variable temp : unsigned(31 downto 0);
+    begin
+        temp<=unsigned(Counter) xor unsigned(Secret_Key);
+        temp<= temp + (temp rol 3); --rotate left
+        temp<= temp + x"9E37"; -- golden ratio const (2^32/1.618) bcs its irrationally good
+        temp<= temp rol 7;
+
+    OTP_Result <= std_logic_vector(temp);
+
+    end process;
 end Behavioral;
