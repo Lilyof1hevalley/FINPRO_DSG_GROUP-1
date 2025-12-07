@@ -13,7 +13,7 @@ Project Description
 In this project, a secure Remote Keyless Entry (RKE) system based on the Rolling Code (Hopping Code) algorithm to avoid replay attacks is implemented. It is made up of a "Key Fob" (Client) and a "Car System" (Server) which communicate to each other using the Serial Peripheral Interface (SPI) protocol. This design is unique in the sense that all signals sent are unique unlike normal fixed-code systems. The car compares the received code with an authoritative set of the future codes called the window and has a high level of security on the vehicle access.
 
 Key Features: 
-1. #Rolling Code Generation#: Generates unique codes with each button press by using a pseudo-random number generator (PRNG) or counter-based logic (OTP).
+1. Rolling Code Generation: Generates unique codes with each button press by using a pseudo-random number generator (PRNG) or counter-based logic (OTP).
 2. SPI Communication: The communication will use SPI (Master/Slave) protocol to establish a reliable data transmission between the Key module and the Car module.
 3. Database Management: Stores a database of paired keys and their up-to-date synchronization counters (Seeds) on the Car side.
 4. Resynchronization Window: Allows the car to accept the codes that are a little bit ahead of the counted (processing the scenario when the key is pressed without being close to the car).
