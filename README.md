@@ -47,16 +47,16 @@ VHDL Code - OTP_Generator
 process(Counter, Secret_Key)
     variable temp : unsigned(31 downto 0);
 begin
-    -- Step 1: XOR Counter with Secret_Key (initial mixing)
+    --XOR Counter with Secret_Key (initial mixing)
     temp := unsigned(Counter) xor unsigned(Secret_Key);
     
-    -- Step 2: Non-linear diffusion (add rotated version of itself)
+    -- Non-linear diffusion (add rotated version of itself)
     temp := temp + (temp rol 3);
     
-    -- Step 3: Add golden ratio constant (break patterns)
+    --Add golden ratio constant (break patterns)
     temp := temp + x"9E37";
     
-    -- Step 4: Final bit spreading (rotate left 7 bits)
+    --Final bit spreading (rotate left 7 bits)
     temp := temp rol 7;
     
     OTP_Result <= std_logic_vector(temp);
@@ -80,7 +80,7 @@ end record;
 
 type db_array is array(0 to 3) of key_record;
 
--- Database initialization
+--Database initialization
 signal database : db_array := (
     0 => (id => x"02", key => x"0000000B", counter => x"00", valid => '1'), 
     1 => (id => x"03", key => x"0000000F", counter => x"00", valid => '1'), 
@@ -136,7 +136,7 @@ This is the highest level element, which mounts SPI Slave, Database, OTP Generat
 
 VHDL Code - Car
 ```vhdl
--- Validates if the received counter is within the allowed window
+--Validates if the received counter is within the allowed window
 process(Reg_Counter, db_stored_counter)
 begin
     if (recv_cnt >= stored_cnt) and (recv_cnt <= upper_limit) then
@@ -146,7 +146,7 @@ begin
     end if;
 end process;
 
--- Validates the OTP
+--Validates the OTP
 process(Reg_OTP_Code, Expected_OTP, Counter_Valid, db_key_found)
 begin
     if (Reg_OTP_Code = Expected_OTP) and (Counter_Valid = '1') and (db_key_found = '1') then
