@@ -50,7 +50,7 @@ begin
     --XOR Counter with Secret_Key (initial mixing)
     temp := unsigned(Counter) xor unsigned(Secret_Key);
     
-    -- Non-linear diffusion (add rotated version of itself)
+    --Non-linear diffusion (add rotated version of itself)
     temp := temp + (temp rol 3);
     
     --Add golden ratio constant (break patterns)
