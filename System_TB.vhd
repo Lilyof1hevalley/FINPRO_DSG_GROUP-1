@@ -6,6 +6,7 @@ entity System_TB is
 end System_TB;
 
 architecture Behavioral of System_TB is
+    
     component Car
     Port ( 
         clk            : in  STD_LOGIC;
@@ -36,13 +37,16 @@ architecture Behavioral of System_TB is
     signal key_reset    : std_logic := '1';
     signal car_reset    : std_logic := '1';
     signal key_button   : std_logic := '0';
+    
     signal key_sck      : std_logic;
     signal key_mosi     : std_logic;
     signal key_ss       : std_logic;
     signal key_tx_active: std_logic;
     signal car_miso     : std_logic;
+    
     signal car_door     : std_logic;
     signal car_siren    : std_logic;
+    
     signal test_done    : boolean := false;
     signal unlock_count : integer := 0;
     
@@ -90,6 +94,7 @@ begin
             
             wait until key_tx_active = '1' or test_done;
             wait until key_tx_active = '0' or test_done;
+            
             wait for 5 us;
         end procedure;
         
@@ -100,68 +105,59 @@ begin
             car_reset <= '0';
             wait for 500 ns;
         end procedure;
+
+        procedure reset_key_counter is
+        begin
+            key_reset <= '1';
+            wait for 500 ns;
+            key_reset <= '0';
+            wait for 1 us;
+        end procedure;
+    
+        procedure run_test_cycle(cycle_num : in integer; expected_unlocked : in boolean; scenario_desc : in string) is
+        begin
+            press_unlock_button;
+            
+            if expected_unlocked then
+                assert (car_door = '1' and car_siren = '0')
+                    severity ERROR;
+                
+                if car_door = '1' then
+                    unlock_count <= unlock_count + 1;
+                end if;
+            else
+                assert (car_door = '0' and car_siren = '1')
+                    severity ERROR;
+            end if;
+            
+            wait for 3 us; 
+        end procedure;
+        
     begin
-        key_reset <= '1';
+        reset_key_counter;
         car_reset <= '1';
         wait for 500 ns;
-        key_reset <= '0';
         car_reset <= '0';
-        wait for 1 us;
-        wait for 2 us;
-   
-        press_unlock_button;
+        wait for 2 us; 
         
-        if car_door = '1' then
-            unlock_count <= unlock_count + 1;
-        else
-        end if;
-       
-        wait for 3 us;
+        run_test_cycle(1, TRUE, "Successful Authentication (Initial C)");
+        lock_car;
+        
+        run_test_cycle(2, TRUE, "Successful Authentication (Sequential C)");
+        lock_car;
+        
+        reset_key_counter;
+        
+        run_test_cycle(3, FALSE, "Replay Attack (Stale Counter)");
         
         lock_car;
-        wait for 2 us;
         
-        press_unlock_button;
-        
-        if car_door = '1' then
-            unlock_count <= unlock_count + 1;
-        else
-        end if;
-        wait for 3 us;
-        
+        run_test_cycle(4, FALSE, "Recovery Attempt 1 (C=2, still stale)");
         lock_car;
-        wait for 2 us;
         
-        press_unlock_button;
-        
-        if car_door = '1' then
-            unlock_count <= unlock_count + 1;
-        else
-        end if;
-
-        wait for 3 us;
-
+        run_test_cycle(5, TRUE, "Recovery Attempt 2 (C=3, synchronized!)");
         lock_car;
-        wait for 2 us;
         
-        press_unlock_button;
-        
-        if car_door = '1' then
-            unlock_count <= unlock_count + 1;
-        else
-        end if;
-       
-        wait for 3 us;
-        lock_car;
-        wait for 2 us;
-        
-        press_unlock_button;
-        
-        if car_door = '1' then
-            unlock_count <= unlock_count + 1;
-        else
-        end if;
-        wait for 5 us;
         test_done <= true;
         wait;
         
