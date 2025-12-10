@@ -35,7 +35,7 @@ architecture Behavioral of Car_Database is
     
     type db_array is array(0 to 3) of key_record;
     signal database : db_array := (
-        0 => (id => x"02", key => x"0000000B", counter => x"00", valid => '1'), -- ✅ Key #2
+        0 => (id => x"02", key => x"0000000B", counter => x"00", valid => '1'), -- Key #2
         1 => (id => x"03", key => x"0000000F", counter => x"00", valid => '1'), -- Key #3
         2 => (id => x"04", key => x"00000014", counter => x"00", valid => '1'), -- Key #4
         3 => (id => x"FF", key => x"00000000", counter => x"00", valid => '0')  -- Empty slot
